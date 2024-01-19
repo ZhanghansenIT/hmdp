@@ -1,7 +1,9 @@
 package com.hmdp.service.impl;
 
 import cn.hutool.core.util.RandomUtil;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.User;
 import com.hmdp.mapper.UserMapper;
@@ -10,6 +12,8 @@ import com.hmdp.utils.RegexUtils;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpSession;
+
+import static com.hmdp.utils.SystemConstants.USER_NICK_NAME_PREFIX;
 
 /**
  * <p>
@@ -40,6 +44,53 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         log.debug("发送短信验证码 :  "+ code);
 
 
-        return null;
+        return Result.ok();
     }
+
+    @Override
+    public Result login(LoginFormDTO loginForm, HttpSession session) {
+        // 1. 校验手机号
+
+        String phone = loginForm.getPhone() ;
+        if(RegexUtils.isPhoneInvalid(phone)) {
+            return Result.fail("手机格式错误 !") ;
+        }
+
+        // 2. 校验验证码
+        // 从session 中获取验证码
+        Object Cachecode = session.getAttribute("code") ;
+        String code = loginForm.getCode() ;
+        if( Cachecode == null || Cachecode.toString().equals(code)) {
+            // 3. 不一致，报错
+            Result.fail("验证码错误") ;
+        }
+        // 4. 一致，根据手机号查询用户
+//        QueryWrapper<User> queryWrapper = new QueryWrapper<>() ;
+//        queryWrapper.eq("phone",phone) ;
+//        User user = userService.getOne(queryWrapper) ;
+
+        User user = query().eq("phone", phone).one();
+        // 5. 判断用户是否存在
+        if(user == null) {
+            // 6. 不存在 ，创建新用户
+            user = createUserWithPhone(phone) ;
+        }
+
+        // 7. 存在，保存信息到 session
+        session.setAttribute("user",user);
+
+        return Result.ok();
+    }
+    private User createUserWithPhone(String phone) {
+        // 创建新用户
+
+        User user = new User() ;
+        user.setPhone(phone) ;
+        user.setNickName(USER_NICK_NAME_PREFIX + RandomUtil.randomString(10)) ;
+        // 保存
+        save(user) ;
+        return user;
+    }
+
+
 }
