@@ -48,12 +48,6 @@ public class UserController {
     public Result sendCode(@RequestParam("phone") String phone, HttpSession session) {
 
         Result result = userService.sendCode(phone,session) ;
-        // 提交手机号
-
-        // 校验手机号
-
-        //如果符合，放行
-
 
 
         return Result.ok();
@@ -65,9 +59,10 @@ public class UserController {
      */
     @PostMapping("/login")
     public Result login(@RequestBody LoginFormDTO loginForm, HttpSession session){
-        userService.login(loginForm,session) ;
+        Result tokenInfo = userService.login(loginForm, session);
 
-        return Result.ok("登录成功!");
+
+        return tokenInfo;
     }
 
 
@@ -84,10 +79,10 @@ public class UserController {
 
     @GetMapping("/me")
     public Result me(){
-        // TODO 获取当前登录的用户并返回
-
-        UserDTO userDTO =  UserHolder.getUser();
-        return Result.ok(userDTO) ;
+//        log.debug("user11111111" );
+        UserDTO user =  UserHolder.getUser();
+//        log.debug("user2" +user);
+        return Result.ok(user) ;
     }
 
     @GetMapping("/info/{id}")
