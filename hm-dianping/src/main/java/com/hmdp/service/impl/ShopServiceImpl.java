@@ -96,60 +96,60 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 //        return shop;
 //
 //    }
-    public Shop queryWithPassMutex(Long id ) {
-
-        // 使用互斥锁来解决缓存击穿问题
-
-
-        String key = CACHE_SHOP_KEY + id ;
-        // 1. 从 redis 中查询商铺缓存
-        String shopJson = stringRedisTemplate.opsForValue().get(key) ;
-
-        // 2. 判断是否存在
-        if(StrUtil.isNotBlank(shopJson)) {
-            // 3. 存在 直接返回
-
-            return JSONUtil.toBean(shopJson, Shop.class);
-        }
-        // 判断是否是null 如果是null,则数据库中也不存咋
-        if(shopJson !=null) {
-            return null ;
-        }
-
-        // 4. 实现缓存重建
-        // 4.1 获取互斥锁
-        String lockKey = LOCK_SHOP_KEY + id;
-        Shop shop = null;
-        try {
-
-            boolean isLock = tryLock(lockKey);
-            // 4.2 判断是否获取成功
-//            Thread.sleep(200);
-            // 4.3 失败，则休眠并重试
-            if(!isLock) {
-                Thread.sleep(50) ;
-                return queryWithPassMutex(id) ;
-            }
-
-            // 4.4 成功，根据id 查询数据库
-
-            shop = getById(id);
-            // 5. 不存在，返回错误
-
-            // 数据库中也不存在，则将空返回给 redis
-            if(shop == null) {
-                //将空值返回给 redis ,并且设置一个 ttl
-                stringRedisTemplate.opsForValue().set(key,"",CACHE_NULL_TTL,TimeUnit.MINUTES);
-                return null;
-            }
-            stringRedisTemplate.opsForValue().set(key,JSONUtil.toJsonStr(shop),CACHE_SHOP_TTL, TimeUnit.MINUTES);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }finally {
-            unLock(lockKey);
-        }
-        return shop;
-    }
+//    public Shop queryWithPassMutex(Long id ) {
+//
+//        // 使用互斥锁来解决缓存击穿问题
+//
+//
+//        String key = CACHE_SHOP_KEY + id ;
+//        // 1. 从 redis 中查询商铺缓存
+//        String shopJson = stringRedisTemplate.opsForValue().get(key) ;
+//
+//        // 2. 判断是否存在
+//        if(StrUtil.isNotBlank(shopJson)) {
+//            // 3. 存在 直接返回
+//
+//            return JSONUtil.toBean(shopJson, Shop.class);
+//        }
+//        // 判断是否是null 如果是null,则数据库中也不存咋
+//        if(shopJson !=null) {
+//            return null ;
+//        }
+//
+//        // 4. 实现缓存重建
+//        // 4.1 获取互斥锁
+//        String lockKey = LOCK_SHOP_KEY + id;
+//        Shop shop = null;
+//        try {
+//
+//            boolean isLock = tryLock(lockKey);
+//            // 4.2 判断是否获取成功
+////            Thread.sleep(200);
+//            // 4.3 失败，则休眠并重试
+//            if(!isLock) {
+//                Thread.sleep(50) ;
+//                return queryWithPassMutex(id) ;
+//            }
+//
+//            // 4.4 成功，根据id 查询数据库
+//
+//            shop = getById(id);
+//            // 5. 不存在，返回错误
+//
+//            // 数据库中也不存在，则将空返回给 redis
+//            if(shop == null) {
+//                //将空值返回给 redis ,并且设置一个 ttl
+//                stringRedisTemplate.opsForValue().set(key,"",CACHE_NULL_TTL,TimeUnit.MINUTES);
+//                return null;
+//            }
+//            stringRedisTemplate.opsForValue().set(key,JSONUtil.toJsonStr(shop),CACHE_SHOP_TTL, TimeUnit.MINUTES);
+//        } catch (InterruptedException e) {
+//            throw new RuntimeException(e);
+//        }finally {
+//            unLock(lockKey);
+//        }
+//        return shop;
+//    }
 
     /**
      * 逻辑过期，封装逻辑失效
@@ -223,6 +223,14 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     private void unLock(String key) {
        stringRedisTemplate.delete(key) ;
     }
+
+
+    /**
+     * 先更新数据库再删除缓存 -- 在满足原子性的情况下，安全问题概率低
+     * 对于单体系统，利用事务机制来保证原子性 
+     * @param shop
+     * @return
+     */
 
     @Override
     @Transactional
