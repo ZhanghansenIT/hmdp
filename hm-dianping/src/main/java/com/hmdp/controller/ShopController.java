@@ -34,8 +34,6 @@ public class ShopController {
     @GetMapping("/{id}")
     public Result queryShopById(@PathVariable("id") Long id) {
 
-        //TODO 添加缓存
-
 
         return  shopService.queryByid(id) ;
     }
@@ -62,7 +60,7 @@ public class ShopController {
     public Result updateShop(@RequestBody Shop shop) {
         // 写入数据库
 
-        return shopService.update(shop);
+        return shopService.updateShop(shop);
     }
 
     /**

@@ -40,12 +40,12 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     public Result queryByid(Long id) {
         // 解决缓存穿透
 //        Shop shop = queryWithPassThrough(id) ;
-
         // 解决缓存击穿
 //        Shop shop = queryWithPassMutex(id) ;
-
         // 利用逻辑过期解决缓存击穿
         Shop shop = queryWithLogicalExpire(id) ;
+
+
         if(shop == null) {
             return Result.fail("店铺不存在") ;
         }
@@ -73,8 +73,6 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         if(shopJson !=null) {
             return null ;
         }
-
-
         // 后面就是不存在的逻辑了
         // 4. 根据id 查询数据库
         Shop shop = getById(id) ;
@@ -92,35 +90,34 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     }
     public Shop queryWithPassMutex(Long id ) {
+
+        // 使用互斥锁来解决缓存击穿问题
+
+
         String key = CACHE_SHOP_KEY + id ;
         // 1. 从 redis 中查询商铺缓存
         String shopJson = stringRedisTemplate.opsForValue().get(key) ;
-        // 解决缓存穿透
 
         // 2. 判断是否存在
         if(StrUtil.isNotBlank(shopJson)) {
             // 3. 存在 直接返回
-            Shop shop = JSONUtil.toBean(shopJson, Shop.class);
-            return shop;
+
+            return JSONUtil.toBean(shopJson, Shop.class);
         }
-        // 这里就是 如果是空字符串
+        // 判断是否是null 如果是null,则数据库中也不存咋
         if(shopJson !=null) {
             return null ;
         }
 
-
-        // 后面就是不存在的逻辑了
-
-
         // 4. 实现缓存重建
         // 4.1 获取互斥锁
-        String lockKey = null;
+        String lockKey = LOCK_SHOP_KEY + id;
         Shop shop = null;
         try {
-            lockKey = "lock:shop:" + id;
+
             boolean isLock = tryLock(lockKey);
             // 4.2 判断是否获取成功
-            Thread.sleep(200);
+//            Thread.sleep(200);
             // 4.3 失败，则休眠并重试
             if(!isLock) {
                 Thread.sleep(50) ;
@@ -130,9 +127,9 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
             // 4.4 成功，根据id 查询数据库
 
             shop = getById(id);
-
             // 5. 不存在，返回错误
 
+            // 数据库中也不存在，则将空返回给 redis
             if(shop == null) {
                 //将空值返回给 redis ,并且设置一个 ttl
                 stringRedisTemplate.opsForValue().set(key,"",CACHE_NULL_TTL,TimeUnit.MINUTES);
@@ -144,10 +141,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         }finally {
             unLock(lockKey);
         }
-
-
         return shop;
-
     }
 
     /**
@@ -225,7 +219,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     @Override
     @Transactional
-    public Result update(Shop shop) {
+    public Result updateShop(Shop shop) {
 
         Long id = shop.getId() ;
         if(id == null) {
