@@ -43,14 +43,14 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     public Result queryByid(Long id) {
         // 解决缓存穿透
 //        Shop shop = queryWithPassThrough(id) ;
-//       Shop shop =  cacheClient
-//               .queryWithPassThrough(CACHE_SHOP_KEY,id,Shop.class,this::getById,CACHE_SHOP_TTL,TimeUnit.MINUTES) ;
+       Shop shop =  cacheClient
+               .queryWithPassThrough(CACHE_SHOP_KEY,id,Shop.class,this::getById,CACHE_SHOP_TTL,TimeUnit.MINUTES) ;
         // 解决缓存击穿
 //        Shop shop = queryWithPassMutex(id) ;
         // 利用逻辑过期解决缓存击穿
 //        Shop shop = queryWithLogicalExpire(id) ;
-        Shop shop = cacheClient
-                .queryWithLogicalExpire(CACHE_SHOP_KEY,id,Shop.class,this::getById,CACHE_SHOP_TTL,TimeUnit.SECONDS); ;
+//        Shop shop = cacheClient
+//                .queryWithLogicalExpire(CACHE_SHOP_KEY,id,Shop.class,this::getById,CACHE_SHOP_TTL,TimeUnit.SECONDS); ;
 
 
         if(shop == null) {
@@ -227,7 +227,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     /**
      * 先更新数据库再删除缓存 -- 在满足原子性的情况下，安全问题概率低
-     * 对于单体系统，利用事务机制来保证原子性 
+     * 对于单体系统，利用事务机制来保证原子性
      * @param shop
      * @return
      */
