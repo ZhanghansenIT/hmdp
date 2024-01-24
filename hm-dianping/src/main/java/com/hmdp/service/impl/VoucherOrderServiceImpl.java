@@ -9,6 +9,7 @@ import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisIdworker;
 import com.hmdp.utils.UserHolder;
+import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +32,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private ISeckillVoucherService seckillVoucherService ;
     @Override
-    @Transactional
+//    @Transactional
     public Result seckillVoucher(Long voucherId) {
 
         // 1. 查询优惠券信息
@@ -52,28 +53,53 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if(voucher.getStock() <1 ) {
             return Result.fail("库存不足") ;
         }
+        //用户id
+        Long userId = UserHolder.getUser().getId();
+
+        synchronized (userId.toString().intern()){
+            // intern 去常量池中找值相同的对象
+
+            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+            return proxy.createVoucherOrder(voucherId);
+        }
+
+    }
+
+    @Transactional
+    public Result createVoucherOrder(Long voucherId){
+        Long userId = UserHolder.getUser().getId();
+        // 根据用户 id 和优惠券Id ,查询数据库是否有订单了
+        int count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
+
+        // 判断是否存在
+        if(count > 0) {
+            //用户已经购买过了
+            return Result.fail("不能重复购买") ;
+        }
 
         // 5. 扣减库存
         // 使用CAS乐观锁
         boolean success = seckillVoucherService.update()
                 .setSql("stock = stock - 1 ")
-                .eq("voucher_id",voucherId).gt("stock",0)
+                .eq("voucher_id",voucherId)
+                .gt("stock",0)
                 .update() ;
+
 
         if(!success) {
             // 扣减失败
             return Result.fail("库存不足 ") ;
         }
+
+
         // 6. 创建订单
         VoucherOrder voucherOrder = new VoucherOrder();
 
         //订单 id
         long orderId = redisIdworker.nextId("order")  ;
         voucherOrder.setId(orderId) ;
-        //用户id
-        Long userId = UserHolder.getUser().getId();
-        voucherOrder.setUserId(userId) ;
 
+        voucherOrder.setUserId(userId) ;
         //优惠券 id
         voucherOrder.setVoucherId(voucherId) ;
 
