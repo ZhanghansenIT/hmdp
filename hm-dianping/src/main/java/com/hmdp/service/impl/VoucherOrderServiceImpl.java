@@ -54,9 +54,11 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         }
 
         // 5. 扣减库存
+        // 使用CAS乐观锁
         boolean success = seckillVoucherService.update()
                 .setSql("stock = stock - 1 ")
-                .eq("voucher_id",voucherId).update() ;
+                .eq("voucher_id",voucherId).gt("stock",0)
+                .update() ;
 
         if(!success) {
             // 扣减失败
